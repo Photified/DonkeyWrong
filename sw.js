@@ -1,4 +1,4 @@
-const CACHE_NAME = 'donkey-wrong-v1';
+const CACHE_NAME = 'donkey-wrong-v2';
 const assetsToCache = [
     './',
     './index.html',

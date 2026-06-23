@@ -1,31 +1,54 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// UI Elements
+// UI & Score Elements
+const scoreValEl = document.getElementById('scoreVal');
+const hiValEl = document.getElementById('hiVal');
+let score = 0;
+let highScore = localStorage.getItem('donkeyWrongHighScore') || 0;
+hiValEl.innerText = highScore;
+
+function addScore(points) {
+    score += points;
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('donkeyWrongHighScore', highScore);
+        hiValEl.innerText = highScore;
+    }
+    scoreValEl.innerText = score;
+}
+
+// UI Modals
 const helpBtn = document.getElementById('helpBtn');
 const closeBtn = document.getElementById('closeBtn');
 const helpModal = document.getElementById('helpModal');
 const overlay = document.getElementById('overlay');
 const installBtn = document.getElementById('installBtn');
 
-// --- Game State ---
 let isGameOver = false;
 let isPaused = false;
 let frameCount = 0;
 
 // --- Entities ---
+// Mario starts top-right
 const player = {
-    x: 50, y: 500, width: 20, height: 20, color: '#00ffff',
-    dx: 0, dy: 0, speed: 4, jumpPower: -10, grounded: false
+    x: 320, y: 50, width: 20, height: 26, 
+    dx: 0, dy: 0, speed: 3.5, jumpPower: -10, grounded: false, facingLeft: true
 };
 
+// Donkey Kong drops them from top-left
+const dk = { x: 20, y: 40, width: 40, height: 40 };
+// Exit is at bottom-right
+const goal = { x: 340, y: 540, width: 30, height: 40 };
+
+// Staggered platforms moving downward
 const platforms = [
-    { x: 0, y: 580, w: 400, h: 20 },
-    { x: 0, y: 480, w: 320, h: 20 },
-    { x: 80, y: 380, w: 320, h: 20 },
-    { x: 0, y: 280, w: 320, h: 20 },
-    { x: 80, y: 180, w: 320, h: 20 },
-    { x: 180, y: 80, w: 40, h: 20 }
+    { x: 0, y: 80, w: 340, h: 20 },   // Gap on right
+    { x: 60, y: 180, w: 340, h: 20 },  // Gap on left
+    { x: 0, y: 280, w: 340, h: 20 },   // Gap on right
+    { x: 60, y: 380, w: 340, h: 20 },  // Gap on left
+    { x: 0, y: 480, w: 340, h: 20 },   // Gap on right
+    { x: 0, y: 580, w: 400, h: 20 }    // Solid ground
 ];
 
 let barrels = [];
@@ -33,18 +56,15 @@ let barrels = [];
 // --- PWA Install Logic ---
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault(); // Prevent standard browser prompt
+    e.preventDefault();
     deferredPrompt = e;
-    installBtn.style.display = 'block'; // Show install button in modal
+    installBtn.style.display = 'block';
 });
-
 installBtn.addEventListener('click', async () => {
-    if (deferredPrompt !== null) {
+    if (deferredPrompt) {
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            installBtn.style.display = 'none'; // Hide if installed
-        }
+        if (outcome === 'accepted') installBtn.style.display = 'none';
         deferredPrompt = null;
     }
 });
@@ -55,7 +75,6 @@ function toggleModal(show) {
     helpModal.style.display = show ? 'block' : 'none';
     overlay.style.display = show ? 'block' : 'none';
 }
-
 helpBtn.addEventListener('click', () => toggleModal(true));
 closeBtn.addEventListener('click', () => toggleModal(false));
 
@@ -63,53 +82,54 @@ closeBtn.addEventListener('click', () => toggleModal(false));
 const keys = { left: false, right: false, up: false };
 
 window.addEventListener('keydown', e => {
-    if (e.code === 'ArrowLeft') keys.left = true;
-    if (e.code === 'ArrowRight') keys.right = true;
+    if (e.code === 'ArrowLeft') { keys.left = true; player.facingLeft = true; }
+    if (e.code === 'ArrowRight') { keys.right = true; player.facingLeft = false; }
     if (e.code === 'ArrowUp' || e.code === 'Space') keys.up = true;
-    if (isGameOver && e.code === 'Enter') resetGame();
+    if (isGameOver && e.code === 'Enter') resetGame(true);
 });
-
 window.addEventListener('keyup', e => {
     if (e.code === 'ArrowLeft') keys.left = false;
     if (e.code === 'ArrowRight') keys.right = false;
     if (e.code === 'ArrowUp' || e.code === 'Space') keys.up = false;
 });
 
-// Bind Touch Events directly to CANVAS to avoid UI interference
 canvas.addEventListener('touchstart', e => {
-    if (isPaused) return; // Don't move if paused
+    if (isPaused) return; 
     const rect = canvas.getBoundingClientRect();
     const touchX = e.touches[0].clientX - rect.left;
-    const canvasWidth = rect.width;
-    
-    if (touchX < canvasWidth / 3) keys.left = true;
-    else if (touchX > (canvasWidth / 3) * 2) keys.right = true;
+    if (touchX < rect.width / 3) { keys.left = true; player.facingLeft = true; }
+    else if (touchX > (rect.width / 3) * 2) { keys.right = true; player.facingLeft = false; }
     else keys.up = true; 
 }, { passive: false });
 
 canvas.addEventListener('touchend', () => {
     keys.left = keys.right = keys.up = false;
-    if (isGameOver) resetGame();
+    if (isGameOver) resetGame(true);
 });
 
 // --- Core Logic ---
 function spawnBarrel() {
-    barrels.push({ x: 80, y: 150, radius: 10, dx: 3, dy: 0 });
+    // Spawns near DK and rolls right initially
+    barrels.push({ x: 70, y: 50, radius: 10, dx: 3, dy: 0, rotation: 0 });
 }
 
-function resetGame() {
+function resetGame(fullReset) {
     isGameOver = false;
-    player.x = 50; player.y = 500;
+    player.x = 320; player.y = 50;
     player.dx = 0; player.dy = 0;
     barrels = [];
     frameCount = 0;
+    if (fullReset) {
+        score = 0;
+        scoreValEl.innerText = score;
+    }
 }
 
 function update() {
-    if (isGameOver || isPaused) return; // Stop logic if game over or help menu open
+    if (isGameOver || isPaused) return;
     frameCount++;
 
-    player.dy += 0.5;
+    player.dy += 0.6; // Gravity
     if (keys.left) player.dx = -player.speed;
     else if (keys.right) player.dx = player.speed;
     else player.dx = 0;
@@ -137,12 +157,14 @@ function update() {
         }
     });
 
-    if (frameCount % 120 === 0) spawnBarrel();
+    if (frameCount % 110 === 0) spawnBarrel();
 
-    barrels.forEach(b => {
+    for (let i = barrels.length - 1; i >= 0; i--) {
+        let b = barrels[i];
         b.dy += 0.5; 
         b.x += b.dx;
         b.y += b.dy;
+        b.rotation += b.dx * 0.1; // visual spin
 
         platforms.forEach(p => {
             if (b.x - b.radius < p.x + p.w && b.x + b.radius > p.x &&
@@ -154,49 +176,169 @@ function update() {
             }
         });
 
+        // Bouncing off walls
         if (b.x - b.radius <= 0) { b.x = b.radius; b.dx = Math.abs(b.dx); }
         if (b.x + b.radius >= canvas.width) { b.x = canvas.width - b.radius; b.dx = -Math.abs(b.dx); }
 
+        // Player Collision
         if (player.x < b.x + b.radius && player.x + player.width > b.x - b.radius &&
             player.y < b.y + b.radius && player.y + player.height > b.y - b.radius) {
             isGameOver = true;
         }
-    });
 
-    if (player.y < 80) {
-        alert("YOU WIN! Donkey Wrong has been thwarted.");
-        resetGame();
+        // Barrel reached the bottom - Despawn and add points
+        if (b.y > canvas.height) {
+            barrels.splice(i, 1);
+            addScore(10);
+        }
     }
+
+    // Win Condition
+    if (player.x < goal.x + goal.width && player.x + player.width > goal.x &&
+        player.y < goal.y + goal.height && player.y + player.height > goal.y) {
+        addScore(500);
+        alert("Level Cleared! Escaping to the next floor...");
+        resetGame(false); // Keeps score, resets positions
+    }
+}
+
+// --- Custom Graphics ---
+function drawGirder(p) {
+    ctx.fillStyle = '#cc0000';
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.strokeStyle = '#800000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let i = 0; i < p.w; i += 20) {
+        ctx.moveTo(p.x + i, p.y);
+        ctx.lineTo(p.x + i + 20, p.y + p.h);
+        ctx.moveTo(p.x + i + 20, p.y);
+        ctx.lineTo(p.x + i, p.y + p.h);
+    }
+    ctx.stroke();
+    // Top and bottom borders
+    ctx.strokeRect(p.x, p.y, p.w, p.h);
+}
+
+function drawMario(x, y, facingLeft) {
+    ctx.save();
+    if (facingLeft) {
+        ctx.translate(x + 20, y);
+        ctx.scale(-1, 1);
+        x = 0; y = 0;
+    }
+    // Overalls (Blue)
+    ctx.fillStyle = '#0000bb';
+    ctx.fillRect(x + 4, y + 14, 12, 12);
+    // Shirt (Red)
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(x + 2, y + 10, 16, 8);
+    // Face (Peach)
+    ctx.fillStyle = '#ffcc99';
+    ctx.fillRect(x + 4, y + 4, 12, 8);
+    // Hat (Red)
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(x + 2, y, 16, 4);
+    // Mustache/Nose
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + 12, y + 8, 6, 4);
+    // Boots
+    ctx.fillStyle = '#663300';
+    ctx.fillRect(x + 2, y + 24, 6, 4);
+    ctx.fillRect(x + 12, y + 24, 6, 4);
+    ctx.restore();
+}
+
+function drawDK(x, y) {
+    // Body
+    ctx.fillStyle = '#5c3a21';
+    ctx.fillRect(x, y + 10, 40, 30);
+    // Chest
+    ctx.fillStyle = '#d4a373';
+    ctx.fillRect(x + 10, y + 15, 20, 15);
+    // Head
+    ctx.fillStyle = '#5c3a21';
+    ctx.fillRect(x + 5, y, 30, 20);
+    // Face
+    ctx.fillStyle = '#d4a373';
+    ctx.fillRect(x + 10, y + 5, 20, 15);
+    // Eyes
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + 12, y + 8, 4, 4);
+    ctx.fillRect(x + 24, y + 8, 4, 4);
+    // Red Tie
+    ctx.fillStyle = '#ff0000';
+    ctx.beginPath();
+    ctx.moveTo(x + 20, y + 20);
+    ctx.lineTo(x + 16, y + 35);
+    ctx.lineTo(x + 24, y + 35);
+    ctx.fill();
+}
+
+function drawBarrel(b) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rotation);
+    
+    // Wood body
+    ctx.fillStyle = '#a65d37';
+    ctx.beginPath();
+    ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Metal bands
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, b.radius - 2, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Wood grain lines
+    ctx.strokeStyle = '#6e3c22';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-b.radius+2, 0); ctx.lineTo(b.radius-2, 0);
+    ctx.moveTo(-b.radius+4, -4); ctx.lineTo(b.radius-4, -4);
+    ctx.moveTo(-b.radius+4, 4); ctx.lineTo(b.radius-4, 4);
+    ctx.stroke();
+
+    ctx.restore();
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = '#b22222';
-    platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+    // Draw Platforms (Girders)
+    platforms.forEach(p => drawGirder(p));
 
-    ctx.fillStyle = 'gold';
-    ctx.fillRect(180, 60, 40, 20);
+    // Draw Exit Door
+    ctx.fillStyle = '#228B22'; // Green door
+    ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+    ctx.fillStyle = '#000'; // Doorknob
+    ctx.fillRect(goal.x + 22, goal.y + 20, 4, 4);
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px Arial';
+    ctx.fillText("EXIT", goal.x + 4, goal.y + 10);
 
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x, player.y, player.width, player.height);
+    // Draw DK
+    drawDK(dk.x, dk.y);
 
-    ctx.fillStyle = 'orange';
-    barrels.forEach(b => {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-        ctx.fill();
-    });
+    // Draw Player (Mario)
+    drawMario(player.x, player.y, player.facingLeft);
+
+    // Draw Barrels
+    barrels.forEach(b => drawBarrel(b));
 
     if (isGameOver) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        ctx.font = '30px Arial';
+        ctx.fillStyle = '#ff0000';
+        ctx.font = 'bold 35px Courier New';
         ctx.textAlign = 'center';
         ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
-        ctx.font = '15px Arial';
-        ctx.fillText("Press ENTER or Tap Canvas to Restart", canvas.width / 2, canvas.height / 2 + 40);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '16px Courier New';
+        ctx.fillText("Tap or press ENTER to retry", canvas.width / 2, canvas.height / 2 + 40);
     }
 }
 
