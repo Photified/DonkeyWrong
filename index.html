@@ -8,7 +8,7 @@
     <style>
         body { 
             margin: 0; 
-            background: #222; 
+            background: #1a1a1a; 
             touch-action: none; 
             overflow: hidden;
             font-family: 'Courier New', Courier, monospace;
@@ -25,11 +25,11 @@
             justify-content: space-between;
             align-items: center;
             padding: 0 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
             z-index: 2;
-            border-bottom: 2px solid #ff0000;
+            border-bottom: 3px solid #ff3333;
         }
-        #title { font-size: 1.2rem; font-weight: bold; color: #ff3333; }
+        #title { font-size: 1.3rem; font-weight: bold; color: #ff3333; text-shadow: 2px 2px #000; }
         
         #scoreBoard {
             font-size: 1rem;
@@ -40,7 +40,19 @@
         }
         .score-label { color: #00ffff; }
 
-        #helpBtn { background: #333; border: 1px solid #fff; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        #helpBtn { 
+            background: #222; 
+            border: 2px solid #ff3333; 
+            color: #ff3333; 
+            padding: 5px 12px; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            font-size: 1rem;
+            cursor: pointer; 
+            box-shadow: 0 0 5px #ff3333;
+            transition: all 0.2s;
+        }
+        #helpBtn:hover { background: #ff3333; color: black; }
         
         #gameContainer {
             flex-grow: 1;
@@ -52,47 +64,67 @@
         }
         canvas { 
             background: #000; 
-            box-shadow: 0 0 15px rgba(0,0,0,0.8); 
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.2); 
             max-width: 100%; 
             max-height: 100%; 
         }
 
+        /* Shared Modal & Overlay Styles */
         #overlay {
             display: none;
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             z-index: 5;
         }
-        #helpModal {
+        
+        .arcade-modal {
             display: none;
             position: absolute;
             top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #222;
+            background: #111;
             color: white;
-            padding: 20px;
-            border-radius: 8px;
-            border: 2px solid #ff3333;
+            padding: 25px;
+            border-radius: 12px;
+            border: 4px dashed #ff3333;
+            box-shadow: 0 0 20px #ff3333, inset 0 0 15px rgba(255,51,51,0.2);
             z-index: 10;
-            width: 80%;
-            max-width: 320px;
+            width: 85%;
+            max-width: 340px;
             text-align: center;
+            box-sizing: border-box;
         }
-        #helpModal h2 { margin-top: 0; color: #ff3333; }
-        #helpModal p { line-height: 1.5; font-size: 14px; text-align: left; }
+        
+        /* Help Modal specifics */
+        #helpModal { border-color: #00ffff; box-shadow: 0 0 20px #00ffff, inset 0 0 15px rgba(0,255,255,0.2); }
+        #helpModal h2 { margin-top: 0; color: #00ffff; font-size: 1.8rem; text-shadow: 2px 2px #000; }
+        
+        /* Win Modal specifics */
+        #winModal h2 { margin-top: 0; color: #00ff00; font-size: 1.8rem; text-shadow: 2px 2px #000; }
+        #winModal { border-color: #00ff00; box-shadow: 0 0 20px #00ff00, inset 0 0 15px rgba(0,255,0,0.2); }
+
+        .arcade-modal p { line-height: 1.6; font-size: 14px; text-align: left; margin-bottom: 20px; color: #bbb; }
+        .highlight-text { color: #fff; font-weight: bold; }
+        
         .modal-btn {
             display: block;
             width: 100%;
-            margin-top: 10px;
+            margin-top: 12px;
             padding: 12px;
-            border: none;
-            border-radius: 4px;
+            border: 2px solid transparent;
+            border-radius: 6px;
             font-weight: bold;
             font-size: 16px;
+            font-family: 'Courier New', Courier, monospace;
             cursor: pointer;
+            box-shadow: 0 4px 0 #000;
+            transition: transform 0.1s;
         }
-        #closeBtn { background: #ff3333; color: white; }
-        #installBtn { background: #00ffff; color: #000; display: none; margin-bottom: 10px; }
+        .modal-btn:active { transform: translateY(4px); box-shadow: none; }
+        
+        #closeBtn { background: #00ffff; color: #000; }
+        #nextLevelBtn { background: #00ff00; color: #000; }
+        #installBtn { background: #ff3333; color: #fff; display: none; }
     </style>
 </head>
 <body>
@@ -111,15 +143,24 @@
     </div>
 
     <div id="overlay"></div>
-    <div id="helpModal">
-        <h2>How To Play</h2>
+    
+    <div id="helpModal" class="arcade-modal">
+        <h2>HOW TO PLAY</h2>
         <p>
-            **Mobile:** Tap left side to move left, right side to move right. Tap center to jump.<br><br>
-            **Desktop:** Arrow Keys to move, Spacebar to jump.<br><br>
-            **Mission:** You start at the TOP. DK is at the BOTTOM throwing ANTI-GRAVITY barrels! Climb DOWN to the green exit door at the bottom right.
+            <span class="highlight-text">MOBILE:</span> Tap left side to move left, right side to move right. Tap center to jump.<br><br>
+            <span class="highlight-text">DESKTOP:</span> Arrow Keys to move, Spacebar to jump.<br><br>
+            <span class="highlight-text">MISSION:</span> You start at the <span style="color:#ff3333">TOP</span>. DK is at the <span style="color:#ff3333">BOTTOM</span> throwing anti-gravity barrels! Run down to the green exit door.
         </p>
-        <button id="installBtn" class="modal-btn">📱 Install App</button>
-        <button id="closeBtn" class="modal-btn">Resume Game</button>
+        <button id="installBtn" class="modal-btn">📱 INSTALL APP</button>
+        <button id="closeBtn" class="modal-btn">RESUME GAME</button>
+    </div>
+
+    <div id="winModal" class="arcade-modal">
+        <h2>VICTORY!</h2>
+        <p style="text-align: center; color: #fff; font-size: 16px;">
+            Level Cleared!<br>Escaping to the next floor...
+        </p>
+        <button id="nextLevelBtn" class="modal-btn">CONTINUE</button>
     </div>
     
     <script src="game.js"></script>
