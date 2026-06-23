@@ -18,7 +18,6 @@ function addScore(points) {
     scoreValEl.innerText = score;
 }
 
-// UI Modals
 const helpBtn = document.getElementById('helpBtn');
 const closeBtn = document.getElementById('closeBtn');
 const helpModal = document.getElementById('helpModal');
@@ -30,18 +29,19 @@ let isPaused = false;
 let frameCount = 0;
 
 // --- Entities ---
-// Mario starts top-right
+// Player starts TOP-RIGHT (Needs to go down)
 const player = {
     x: 320, y: 50, width: 20, height: 26, 
-    dx: 0, dy: 0, speed: 3.5, jumpPower: -10, grounded: false, facingLeft: true
+    dx: 0, dy: 0, speed: 4, jumpPower: -10, grounded: false, facingLeft: true
 };
 
-// Donkey Kong drops them from top-left
-const dk = { x: 20, y: 40, width: 40, height: 40 };
-// Exit is at bottom-right
+// DK starts BOTTOM-LEFT (Throwing barrels up)
+const dk = { x: 20, y: 540, width: 40, height: 40 };
+
+// Exit is BOTTOM-RIGHT
 const goal = { x: 340, y: 540, width: 30, height: 40 };
 
-// Staggered platforms moving downward
+// Staggered platforms
 const platforms = [
     { x: 0, y: 80, w: 340, h: 20 },   // Gap on right
     { x: 60, y: 180, w: 340, h: 20 },  // Gap on left
@@ -109,13 +109,13 @@ canvas.addEventListener('touchend', () => {
 
 // --- Core Logic ---
 function spawnBarrel() {
-    // Spawns near DK and rolls right initially
-    barrels.push({ x: 70, y: 50, radius: 10, dx: 3, dy: 0, rotation: 0 });
+    // Spawns near DK at the bottom and rolls right initially
+    barrels.push({ x: 70, y: 550, radius: 10, dx: 3, dy: 0, rotation: 0 });
 }
 
 function resetGame(fullReset) {
     isGameOver = false;
-    player.x = 320; player.y = 50;
+    player.x = 320; player.y = 50; // Reset to Top Right
     player.dx = 0; player.dy = 0;
     barrels = [];
     frameCount = 0;
@@ -129,7 +129,8 @@ function update() {
     if (isGameOver || isPaused) return;
     frameCount++;
 
-    player.dy += 0.6; // Gravity
+    // NORMAL GRAVITY FOR PLAYER (Falls down)
+    player.dy += 0.6; 
     if (keys.left) player.dx = -player.speed;
     else if (keys.right) player.dx = player.speed;
     else player.dx = 0;
@@ -145,6 +146,7 @@ function update() {
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
 
+    // Player collides with TOP of platforms
     player.grounded = false;
     platforms.forEach(p => {
         if (player.x < p.x + p.w && player.x + player.width > p.x &&
@@ -161,44 +163,47 @@ function update() {
 
     for (let i = barrels.length - 1; i >= 0; i--) {
         let b = barrels[i];
-        b.dy += 0.5; 
+        
+        // ANTI-GRAVITY FOR BARRELS (Accelerate upwards)
+        b.dy -= 0.3; 
         b.x += b.dx;
         b.y += b.dy;
-        b.rotation += b.dx * 0.1; // visual spin
+        b.rotation -= b.dx * 0.1; 
 
+        // Barrels collide with UNDERSIDE of platforms
         platforms.forEach(p => {
             if (b.x - b.radius < p.x + p.w && b.x + b.radius > p.x &&
                 b.y - b.radius < p.y + p.h && b.y + b.radius > p.y) {
-                if (b.dy > 0 && b.y + b.radius - b.dy <= p.y) {
-                    b.dy = 0;
-                    b.y = p.y - b.radius;
+                if (b.dy < 0 && b.y - b.radius - b.dy >= p.y + p.h) {
+                    b.dy = 0; // Stop moving up
+                    b.y = p.y + p.h + b.radius; // Snap to underside
                 }
             }
         });
 
-        // Bouncing off walls
+        // Bounce off walls
         if (b.x - b.radius <= 0) { b.x = b.radius; b.dx = Math.abs(b.dx); }
         if (b.x + b.radius >= canvas.width) { b.x = canvas.width - b.radius; b.dx = -Math.abs(b.dx); }
 
-        // Player Collision
+        // Player Hit
         if (player.x < b.x + b.radius && player.x + player.width > b.x - b.radius &&
             player.y < b.y + b.radius && player.y + player.height > b.y - b.radius) {
             isGameOver = true;
         }
 
-        // Barrel reached the bottom - Despawn and add points
-        if (b.y > canvas.height) {
+        // Barrel reached the TOP of the screen - Despawn and add points
+        if (b.y < -20) {
             barrels.splice(i, 1);
             addScore(10);
         }
     }
 
-    // Win Condition
+    // Win condition check (Reached bottom right)
     if (player.x < goal.x + goal.width && player.x + player.width > goal.x &&
         player.y < goal.y + goal.height && player.y + player.height > goal.y) {
         addScore(500);
         alert("Level Cleared! Escaping to the next floor...");
-        resetGame(false); // Keeps score, resets positions
+        resetGame(false); 
     }
 }
 
@@ -216,7 +221,6 @@ function drawGirder(p) {
         ctx.lineTo(p.x + i, p.y + p.h);
     }
     ctx.stroke();
-    // Top and bottom borders
     ctx.strokeRect(p.x, p.y, p.w, p.h);
 }
 
@@ -227,106 +231,54 @@ function drawMario(x, y, facingLeft) {
         ctx.scale(-1, 1);
         x = 0; y = 0;
     }
-    // Overalls (Blue)
-    ctx.fillStyle = '#0000bb';
-    ctx.fillRect(x + 4, y + 14, 12, 12);
-    // Shirt (Red)
-    ctx.fillStyle = '#ff0000';
-    ctx.fillRect(x + 2, y + 10, 16, 8);
-    // Face (Peach)
-    ctx.fillStyle = '#ffcc99';
-    ctx.fillRect(x + 4, y + 4, 12, 8);
-    // Hat (Red)
-    ctx.fillStyle = '#ff0000';
-    ctx.fillRect(x + 2, y, 16, 4);
-    // Mustache/Nose
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x + 12, y + 8, 6, 4);
-    // Boots
-    ctx.fillStyle = '#663300';
-    ctx.fillRect(x + 2, y + 24, 6, 4);
-    ctx.fillRect(x + 12, y + 24, 6, 4);
+    ctx.fillStyle = '#0000bb'; ctx.fillRect(x + 4, y + 14, 12, 12);
+    ctx.fillStyle = '#ff0000'; ctx.fillRect(x + 2, y + 10, 16, 8);
+    ctx.fillStyle = '#ffcc99'; ctx.fillRect(x + 4, y + 4, 12, 8);
+    ctx.fillStyle = '#ff0000'; ctx.fillRect(x + 2, y, 16, 4);
+    ctx.fillStyle = '#000'; ctx.fillRect(x + 12, y + 8, 6, 4);
+    ctx.fillStyle = '#663300'; ctx.fillRect(x + 2, y + 24, 6, 4); ctx.fillRect(x + 12, y + 24, 6, 4);
     ctx.restore();
 }
 
 function drawDK(x, y) {
-    // Body
-    ctx.fillStyle = '#5c3a21';
-    ctx.fillRect(x, y + 10, 40, 30);
-    // Chest
-    ctx.fillStyle = '#d4a373';
-    ctx.fillRect(x + 10, y + 15, 20, 15);
-    // Head
-    ctx.fillStyle = '#5c3a21';
-    ctx.fillRect(x + 5, y, 30, 20);
-    // Face
-    ctx.fillStyle = '#d4a373';
-    ctx.fillRect(x + 10, y + 5, 20, 15);
-    // Eyes
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x + 12, y + 8, 4, 4);
-    ctx.fillRect(x + 24, y + 8, 4, 4);
-    // Red Tie
-    ctx.fillStyle = '#ff0000';
-    ctx.beginPath();
-    ctx.moveTo(x + 20, y + 20);
-    ctx.lineTo(x + 16, y + 35);
-    ctx.lineTo(x + 24, y + 35);
-    ctx.fill();
+    ctx.fillStyle = '#5c3a21'; ctx.fillRect(x, y + 10, 40, 30);
+    ctx.fillStyle = '#d4a373'; ctx.fillRect(x + 10, y + 15, 20, 15);
+    ctx.fillStyle = '#5c3a21'; ctx.fillRect(x + 5, y, 30, 20);
+    ctx.fillStyle = '#d4a373'; ctx.fillRect(x + 10, y + 5, 20, 15);
+    ctx.fillStyle = '#000'; ctx.fillRect(x + 12, y + 8, 4, 4); ctx.fillRect(x + 24, y + 8, 4, 4);
+    ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.moveTo(x + 20, y + 20); ctx.lineTo(x + 16, y + 35); ctx.lineTo(x + 24, y + 35); ctx.fill();
 }
 
 function drawBarrel(b) {
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.rotate(b.rotation);
-    
-    // Wood body
-    ctx.fillStyle = '#a65d37';
-    ctx.beginPath();
-    ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Metal bands
-    ctx.strokeStyle = '#cccccc';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, b.radius - 2, 0, Math.PI * 2);
-    ctx.stroke();
-    
-    // Wood grain lines
-    ctx.strokeStyle = '#6e3c22';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    ctx.fillStyle = '#a65d37'; ctx.beginPath(); ctx.arc(0, 0, b.radius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, b.radius - 2, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#6e3c22'; ctx.lineWidth = 1; ctx.beginPath(); 
     ctx.moveTo(-b.radius+2, 0); ctx.lineTo(b.radius-2, 0);
     ctx.moveTo(-b.radius+4, -4); ctx.lineTo(b.radius-4, -4);
     ctx.moveTo(-b.radius+4, 4); ctx.lineTo(b.radius-4, 4);
     ctx.stroke();
-
     ctx.restore();
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Platforms (Girders)
     platforms.forEach(p => drawGirder(p));
 
-    // Draw Exit Door
-    ctx.fillStyle = '#228B22'; // Green door
+    // Draw Exit Door (Bottom Right)
+    ctx.fillStyle = '#228B22'; 
     ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
-    ctx.fillStyle = '#000'; // Doorknob
+    ctx.fillStyle = '#000'; 
     ctx.fillRect(goal.x + 22, goal.y + 20, 4, 4);
     ctx.fillStyle = '#fff';
     ctx.font = '10px Arial';
     ctx.fillText("EXIT", goal.x + 4, goal.y + 10);
 
-    // Draw DK
     drawDK(dk.x, dk.y);
-
-    // Draw Player (Mario)
     drawMario(player.x, player.y, player.facingLeft);
-
-    // Draw Barrels
     barrels.forEach(b => drawBarrel(b));
 
     if (isGameOver) {

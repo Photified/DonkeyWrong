@@ -17,7 +17,6 @@
             height: 100vh;
         }
         
-        /* Top Navigation Bar */
         #topBar {
             height: 50px;
             background: #111;
@@ -32,7 +31,6 @@
         }
         #title { font-size: 1.2rem; font-weight: bold; color: #ff3333; }
         
-        /* Score Area */
         #scoreBoard {
             font-size: 1rem;
             color: #fff;
@@ -44,7 +42,6 @@
 
         #helpBtn { background: #333; border: 1px solid #fff; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; }
         
-        /* Game Container */
         #gameContainer {
             flex-grow: 1;
             display: flex;
@@ -60,7 +57,6 @@
             max-height: 100%; 
         }
 
-        /* Modal Styles */
         #overlay {
             display: none;
             position: absolute;
@@ -114,14 +110,13 @@
         <canvas id="gameCanvas" width="400" height="600"></canvas>
     </div>
 
-    <!-- Modal UI -->
     <div id="overlay"></div>
     <div id="helpModal">
         <h2>How To Play</h2>
         <p>
-            **Mobile:** Tap left side to move left, right side to move right. Tap the center to jump.<br><br>
-            **Desktop:** Use Arrow Keys to move and Spacebar to jump.<br><br>
-            **Mission:** Start at the top and escape down to the green exit door at the bottom. Survive the barrels!
+            **Mobile:** Tap left side to move left, right side to move right. Tap center to jump.<br><br>
+            **Desktop:** Arrow Keys to move, Spacebar to jump.<br><br>
+            **Mission:** You start at the TOP. DK is at the BOTTOM throwing ANTI-GRAVITY barrels! Climb DOWN to the green exit door at the bottom right.
         </p>
         <button id="installBtn" class="modal-btn">📱 Install App</button>
         <button id="closeBtn" class="modal-btn">Resume Game</button>
