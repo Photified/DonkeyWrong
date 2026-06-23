@@ -18,9 +18,12 @@ function addScore(points) {
     scoreValEl.innerText = score;
 }
 
+// Modal Elements
 const helpBtn = document.getElementById('helpBtn');
 const closeBtn = document.getElementById('closeBtn');
 const helpModal = document.getElementById('helpModal');
+const winModal = document.getElementById('winModal');
+const nextLevelBtn = document.getElementById('nextLevelBtn');
 const overlay = document.getElementById('overlay');
 const installBtn = document.getElementById('installBtn');
 
@@ -29,26 +32,21 @@ let isPaused = false;
 let frameCount = 0;
 
 // --- Entities ---
-// Player starts TOP-RIGHT (Needs to go down)
 const player = {
     x: 320, y: 50, width: 20, height: 26, 
     dx: 0, dy: 0, speed: 4, jumpPower: -10, grounded: false, facingLeft: true
 };
 
-// DK starts BOTTOM-LEFT (Throwing barrels up)
 const dk = { x: 20, y: 540, width: 40, height: 40 };
-
-// Exit is BOTTOM-RIGHT
 const goal = { x: 340, y: 540, width: 30, height: 40 };
 
-// Staggered platforms
 const platforms = [
-    { x: 0, y: 80, w: 340, h: 20 },   // Gap on right
-    { x: 60, y: 180, w: 340, h: 20 },  // Gap on left
-    { x: 0, y: 280, w: 340, h: 20 },   // Gap on right
-    { x: 60, y: 380, w: 340, h: 20 },  // Gap on left
-    { x: 0, y: 480, w: 340, h: 20 },   // Gap on right
-    { x: 0, y: 580, w: 400, h: 20 }    // Solid ground
+    { x: 0, y: 80, w: 340, h: 20 },   
+    { x: 60, y: 180, w: 340, h: 20 },  
+    { x: 0, y: 280, w: 340, h: 20 },   
+    { x: 60, y: 380, w: 340, h: 20 },  
+    { x: 0, y: 480, w: 340, h: 20 },   
+    { x: 0, y: 580, w: 400, h: 20 }    
 ];
 
 let barrels = [];
@@ -69,14 +67,26 @@ installBtn.addEventListener('click', async () => {
     }
 });
 
-// --- Modal UI Logic ---
-function toggleModal(show) {
+// --- Modal UI Handling ---
+function showHelp(show) {
     isPaused = show;
     helpModal.style.display = show ? 'block' : 'none';
     overlay.style.display = show ? 'block' : 'none';
 }
-helpBtn.addEventListener('click', () => toggleModal(true));
-closeBtn.addEventListener('click', () => toggleModal(false));
+
+function showWinModal(show) {
+    isPaused = show;
+    winModal.style.display = show ? 'block' : 'none';
+    overlay.style.display = show ? 'block' : 'none';
+}
+
+helpBtn.addEventListener('click', () => showHelp(true));
+closeBtn.addEventListener('click', () => showHelp(false));
+
+nextLevelBtn.addEventListener('click', () => {
+    showWinModal(false);
+    resetGame(false); // Progress to next round cleanly
+});
 
 // --- Input Handling ---
 const keys = { left: false, right: false, up: false };
@@ -109,13 +119,12 @@ canvas.addEventListener('touchend', () => {
 
 // --- Core Logic ---
 function spawnBarrel() {
-    // Spawns near DK at the bottom and rolls right initially
     barrels.push({ x: 70, y: 550, radius: 10, dx: 3, dy: 0, rotation: 0 });
 }
 
 function resetGame(fullReset) {
     isGameOver = false;
-    player.x = 320; player.y = 50; // Reset to Top Right
+    player.x = 320; player.y = 50; 
     player.dx = 0; player.dy = 0;
     barrels = [];
     frameCount = 0;
@@ -129,7 +138,6 @@ function update() {
     if (isGameOver || isPaused) return;
     frameCount++;
 
-    // NORMAL GRAVITY FOR PLAYER (Falls down)
     player.dy += 0.6; 
     if (keys.left) player.dx = -player.speed;
     else if (keys.right) player.dx = player.speed;
@@ -146,7 +154,6 @@ function update() {
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
 
-    // Player collides with TOP of platforms
     player.grounded = false;
     platforms.forEach(p => {
         if (player.x < p.x + p.w && player.x + player.width > p.x &&
@@ -163,47 +170,40 @@ function update() {
 
     for (let i = barrels.length - 1; i >= 0; i--) {
         let b = barrels[i];
-        
-        // ANTI-GRAVITY FOR BARRELS (Accelerate upwards)
         b.dy -= 0.3; 
         b.x += b.dx;
         b.y += b.dy;
         b.rotation -= b.dx * 0.1; 
 
-        // Barrels collide with UNDERSIDE of platforms
         platforms.forEach(p => {
             if (b.x - b.radius < p.x + p.w && b.x + b.radius > p.x &&
                 b.y - b.radius < p.y + p.h && b.y + b.radius > p.y) {
                 if (b.dy < 0 && b.y - b.radius - b.dy >= p.y + p.h) {
-                    b.dy = 0; // Stop moving up
-                    b.y = p.y + p.h + b.radius; // Snap to underside
+                    b.dy = 0; 
+                    b.y = p.y + p.h + b.radius; 
                 }
             }
         });
 
-        // Bounce off walls
         if (b.x - b.radius <= 0) { b.x = b.radius; b.dx = Math.abs(b.dx); }
         if (b.x + b.radius >= canvas.width) { b.x = canvas.width - b.radius; b.dx = -Math.abs(b.dx); }
 
-        // Player Hit
         if (player.x < b.x + b.radius && player.x + player.width > b.x - b.radius &&
             player.y < b.y + b.radius && player.y + player.height > b.y - b.radius) {
             isGameOver = true;
         }
 
-        // Barrel reached the TOP of the screen - Despawn and add points
         if (b.y < -20) {
             barrels.splice(i, 1);
             addScore(10);
         }
     }
 
-    // Win condition check (Reached bottom right)
+    // Dynamic Win Check (No Native Popups!)
     if (player.x < goal.x + goal.width && player.x + player.width > goal.x &&
         player.y < goal.y + goal.height && player.y + player.height > goal.y) {
         addScore(500);
-        alert("Level Cleared! Escaping to the next floor...");
-        resetGame(false); 
+        showWinModal(true); // Triggers our beautiful win screen element
     }
 }
 
@@ -268,7 +268,7 @@ function draw() {
 
     platforms.forEach(p => drawGirder(p));
 
-    // Draw Exit Door (Bottom Right)
+    // Draw Exit Door
     ctx.fillStyle = '#228B22'; 
     ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
     ctx.fillStyle = '#000'; 
@@ -290,7 +290,7 @@ function draw() {
         ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
         ctx.fillStyle = '#ffffff';
         ctx.font = '16px Courier New';
-        ctx.fillText("Tap or press ENTER to retry", canvas.width / 2, canvas.height / 2 + 40);
+        ctx.fillText("Tap canvas or press ENTER to retry", canvas.width / 2, canvas.height / 2 + 40);
     }
 }
 
